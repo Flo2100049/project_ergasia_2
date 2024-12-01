@@ -150,7 +150,6 @@ void flip_edges(CDT& cdt,Polygon boundary) {
                         if (count_aft<count_bef){
                             Face_handle dupface;
                             dupface=face;
-                            std::cout<<"I found one"<<std::endl;
                             cdt.flip(dupface,i);
                             flip_edges(cdt,pol);
                             return;
@@ -448,14 +447,112 @@ void insert_steiner_point_between_obtuse_neighbors(CDT& cdt,Polygon& pol) {
     }
 }
 
-
 void local_method(CDT& cdt, Polygon& pol, int L) {
-   return;
+    return;
 }
 
-void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) {
-   return; 
+
+void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) { 
+    int initial_obtuse = return_obtuse(cdt, pol);
+    int initial_steiner_points = steiner_points_x_2.size(); 
+    double energy = alpha * initial_obtuse + beta * initial_steiner_points;
+
+    double T = 1.0;
+    bool improvement;
+
+    while(T > 0.0) {
+        improvement = false;
+
+        for(auto face = cdt.finite_faces_begin(); face != cdt.finite_faces_end(); ++face) {
+            Point p1 = face->vertex(0)->point();
+            Point p2 = face->vertex(1)->point();
+            Point p3 = face->vertex(2)->point();
+
+            int obtuse_edge = is_obtuse(p1, p2, p3);
+            if (obtuse_edge == 0) 
+                continue;
+             
+            Point project_e;
+            Point midpoint;
+            if (obtuse_edge == 1) {
+                project_e = project_edge(p1,p2, p3);  // Bisect edge (p2, p3)
+                midpoint = midpoint_edge(p2, p3);    
+            } 
+            else if (obtuse_edge == 2) {
+                project_e = project_edge(p2,p1, p3);  // Bisect edge (p1, p3)
+                midpoint = midpoint_edge(p1, p3);
+            } 
+            else if (obtuse_edge == 3) {
+                project_e = project_edge(p3,p1, p2);  // Bisect edge (p1, p2)
+                midpoint = midpoint_edge(p1, p2);
+            }
+
+            std::vector<Point> steiner_points;        //Vector of points for the 5 possible steiner points
+
+            Face_handle neighbor;
+            int obtuse_neighbor_idx;
+            Point neigbr;
+            if (find_obtuse_neighbor(cdt, face, neighbor, obtuse_neighbor_idx)) {
+                Point np1 = neighbor->vertex(0)->point();
+                Point np2 = neighbor->vertex(1)->point();
+                Point np3 = neighbor->vertex(2)->point();
+
+                if (is_obtuse(np1, np2, np3) != 0) {
+                    neigbr = midpoint_edge(CGAL::centroid(p1, p2, p3), CGAL::centroid(np1, np2, np3));
+                    steiner_points.push_back(neigbr);
+                }
+            }
+
+            steiner_points.push_back(project_e);
+            steiner_points.push_back(midpoint);
+            steiner_points.push_back(CGAL::circumcenter(p1, p2, p3));
+            steiner_points.push_back(CGAL::centroid(p1, p2, p3));
+
+            Point selected_point = steiner_points[rand() % steiner_points.size()];
+
+            if(pol.bounded_side(selected_point) != CGAL::ON_BOUNDED_SIDE)
+              continue; 
+
+            CDT temp_cdt = cdt;
+            if(selected_point == CGAL::centroid(p1, p2, p3)){
+               temp_cdt.insert_no_flip(selected_point);
+            }
+            else{
+               temp_cdt.insert(selected_point);
+            }
+
+            int new_obtuse = return_obtuse(temp_cdt, pol);
+            int new_steiner_points =  steiner_points_x_2.size() + 1; 
+            double new_energy = alpha * new_obtuse + beta * new_steiner_points;
+
+            double d_energy = new_energy - energy;
+
+            if(d_energy < 0 || exp(-d_energy / T) >= ((double)rand() / RAND_MAX)) { //Propability between 0.0 and 1.0
+               if(selected_point == CGAL::centroid(p1, p2, p3)){
+                  cdt.insert_no_flip(selected_point);
+                }
+                else{
+                  cdt.insert(selected_point);
+                }   
+                
+                energy = new_energy;
+                improvement = true;
+                steiner_points_x_2.push_back((selected_point.x()));
+                steiner_points_y_2.push_back((selected_point.y()));
+                std::cout << "Improved made\n";
+            }
+        }
+
+        T -= 1.0 / L;
+
+        if(!improvement) {
+           std::cout << "Break; \n";
+           break; 
+        }
+    }
 }
+
+
 
 void ant_method(CDT& cdt, Polygon& pol, double alpha, double beta, double xi, double psi, double lambda, int kappa, int L) {
    return;
@@ -558,50 +655,26 @@ int main(int argc, char *argv[]) {
     std::string method = data.at("method").as_string().c_str();
     const json::object& parameters = data.at("parameters").as_object(); 
 
-    CDT original_delanay = cdt;
     int obtuse_count;
 
+    if(!delaunay) {
     ///////////////////////TEST FLIPPPING////////////////////
-    std::cout<<"Before edge flipping\n";
-    print_obtuse(cdt,boundary_polygon);
-    
-    //Do flip edges
     flip_edges(cdt,boundary_polygon);
-
-    std::cout<<"After edge flipping\n";
-    print_obtuse(cdt,boundary_polygon);
-    std::cout<<"\n";
     ///////////////////////TEST FLIPPING//////////////////////////
-
     ///////////////////////TEST STEINER////////////////////
-    std::cout<<"Before inserting steiner points\n";
-    print_obtuse(cdt,boundary_polygon);
-    
-    //insert_steiner_point_between_obtuse_neighbors(cdt,boundary_polygon);
+    insert_steiner_point_between_obtuse_neighbors(cdt,boundary_polygon);
     insert_steiner_points_combined(cdt, return_obtuse(cdt,boundary_polygon),boundary_polygon);
-
-    std::cout<<"After inserting steiner points\n";
-    print_obtuse(cdt,boundary_polygon);
-    std::cout<<"\n";
     ///////////////////////TEST STEINER//////////////////////////
+    }
 
-   
     //If delanay parameter is YES the we use the delanay_original cdt, if is NO we use the cdt that is worked in first part of project
     //Method
     if (method == "sa") {
         double alpha = parameters.at("alpha").as_double();
         double beta = parameters.at("beta").as_double();
         int L = parameters.at("L").as_int64();
-         if(delaunay) {
-           sa_method(original_delanay, boundary_polygon, alpha, beta, L);
-           obtuse_count = return_obtuse(original_delanay, boundary_polygon);
-         }  
-         else {
-           sa_method(cdt, boundary_polygon, alpha, beta, L);
-           obtuse_count = return_obtuse(cdt, boundary_polygon);
-         }  
-           
-          
+        sa_method(cdt, boundary_polygon, alpha, beta, L);
+        obtuse_count = return_obtuse(cdt, boundary_polygon);  
     } 
     else if (method == "ant") {
         double alpha = parameters.at("alpha").as_double();
@@ -611,33 +684,21 @@ int main(int argc, char *argv[]) {
         double lambda = parameters.at("lambda").as_double();
         int kappa = parameters.at("kappa").as_int64();
         int L = parameters.at("L").as_int64();
-         if(delaunay) {
-           ant_method(original_delanay, boundary_polygon, alpha, beta, xi, psi, lambda, kappa, L);
-           obtuse_count = return_obtuse(original_delanay, boundary_polygon);
-         }  
-         else {
-           ant_method(cdt, boundary_polygon, alpha, beta, xi, psi, lambda, kappa, L);
-           obtuse_count = return_obtuse(cdt, boundary_polygon);
-         }  
-
+        ant_method(cdt, boundary_polygon, alpha, beta, xi, psi, lambda, kappa, L);
+        obtuse_count = return_obtuse(cdt, boundary_polygon);
 
     } 
     else if (method == "local") {
         int L = parameters.at("L").as_int64();
-         if(delaunay) {
-           local_method(original_delanay, boundary_polygon, L);
-           obtuse_count = return_obtuse(original_delanay, boundary_polygon);
-         }  
-         else {
-           local_method(cdt, boundary_polygon, L);
-           obtuse_count = return_obtuse(cdt, boundary_polygon);
-         }  
+        local_method(cdt, boundary_polygon, L);
+        obtuse_count = return_obtuse(cdt, boundary_polygon); 
     }
 
     for (int i=0; i<steiner_points_x_2.size(); i++){
         steiner_points_x.push_back(return_rational(steiner_points_x_2[i]));
         steiner_points_y.push_back(return_rational(steiner_points_y_2[i]));
     }
+    std::cout << "Number of obtuse:" << obtuse_count << std::endl;
 
     //Create JSON output
     json::object output;
