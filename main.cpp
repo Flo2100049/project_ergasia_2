@@ -10,6 +10,7 @@
 #include <vector>
 #include <boost/json.hpp>
 #include <fstream>
+#include <ctime>
 
 typedef CGAL::Exact_predicates_exact_constructions_kernel K;
 typedef CGAL::Exact_predicates_tag Itag;
@@ -456,6 +457,8 @@ void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) {
     int initial_obtuse = return_obtuse(cdt, pol);
     int initial_steiner_points = steiner_points_x_2.size(); 
     double energy = alpha * initial_obtuse + beta * initial_steiner_points;
+    srand(time(0));
+    L=1000;
 
     double T = 1.0;
     bool improvement;
@@ -492,16 +495,16 @@ void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) {
             Face_handle neighbor;
             int obtuse_neighbor_idx;
             Point neigbr;
-            if (find_obtuse_neighbor(cdt, face, neighbor, obtuse_neighbor_idx)) {
-                Point np1 = neighbor->vertex(0)->point();
-                Point np2 = neighbor->vertex(1)->point();
-                Point np3 = neighbor->vertex(2)->point();
+            // if (find_obtuse_neighbor(cdt, face, neighbor, obtuse_neighbor_idx)) {
+            //     Point np1 = neighbor->vertex(0)->point();
+            //     Point np2 = neighbor->vertex(1)->point();
+            //     Point np3 = neighbor->vertex(2)->point();
 
-                if (is_obtuse(np1, np2, np3) != 0) {
-                    neigbr = midpoint_edge(CGAL::centroid(p1, p2, p3), CGAL::centroid(np1, np2, np3));
-                    steiner_points.push_back(neigbr);
-                }
-            }
+            //     if (is_obtuse(np1, np2, np3) != 0) {
+            //         neigbr = midpoint_edge(CGAL::centroid(p1, p2, p3), CGAL::centroid(np1, np2, np3));
+            //         steiner_points.push_back(neigbr);
+            //     }
+            // }
 
             steiner_points.push_back(project_e);
             steiner_points.push_back(midpoint);
@@ -510,15 +513,15 @@ void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) {
 
             Point selected_point = steiner_points[rand() % steiner_points.size()];
 
-            if(pol.bounded_side(selected_point) != CGAL::ON_BOUNDED_SIDE)
+            if(pol.bounded_side(selected_point) == CGAL::ON_UNBOUNDED_SIDE)
               continue; 
 
             CDT temp_cdt = cdt;
-            if(selected_point == CGAL::centroid(p1, p2, p3)){
-               temp_cdt.insert_no_flip(selected_point);
+            if(selected_point == CGAL::centroid(p1, p2, p3) || selected_point == CGAL::circumcenter(p1, p2, p3)){
+               temp_cdt.insert(selected_point);
             }
             else{
-               temp_cdt.insert(selected_point);
+               temp_cdt.insert_no_flip(selected_point);
             }
 
             int new_obtuse = return_obtuse(temp_cdt, pol);
@@ -527,12 +530,14 @@ void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) {
 
             double d_energy = new_energy - energy;
 
-            if(d_energy < 0 || exp(-d_energy / T) >= ((double)rand() / RAND_MAX)) { //Propability between 0.0 and 1.0
-               if(selected_point == CGAL::centroid(p1, p2, p3)){
-                  cdt.insert_no_flip(selected_point);
+            if(d_energy < 0 || (exp((-1)*d_energy / T) >= ((double)rand() / RAND_MAX))) { //Propability between 0.0 and 1.0
+               if(selected_point == CGAL::centroid(p1, p2, p3) || selected_point == CGAL::circumcenter(p1, p2, p3)){
+                  cdt.insert(selected_point);
+                  
                 }
                 else{
-                  cdt.insert(selected_point);
+                  cdt.insert_no_flip(selected_point);
+                  
                 }   
                 
                 energy = new_energy;
@@ -540,15 +545,16 @@ void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) {
                 steiner_points_x_2.push_back((selected_point.x()));
                 steiner_points_y_2.push_back((selected_point.y()));
                 std::cout << "Improved made\n";
+                break;
             }
         }
 
         T -= 1.0 / L;
 
-        if(!improvement) {
-           std::cout << "Break; \n";
-           break; 
-        }
+        // if(!improvement) {
+        //    std::cout << "Break; \n";
+        //    break; 
+        // }
     }
 }
 
@@ -673,8 +679,12 @@ int main(int argc, char *argv[]) {
         double alpha = parameters.at("alpha").as_double();
         double beta = parameters.at("beta").as_double();
         int L = parameters.at("L").as_int64();
+        printf("%f\n",alpha);
+        printf("%f\n",beta);
+        printf("%d\n",L);
         sa_method(cdt, boundary_polygon, alpha, beta, L);
         obtuse_count = return_obtuse(cdt, boundary_polygon);  
+        printf("hello\n");
     } 
     else if (method == "ant") {
         double alpha = parameters.at("alpha").as_double();
@@ -686,6 +696,7 @@ int main(int argc, char *argv[]) {
         int L = parameters.at("L").as_int64();
         ant_method(cdt, boundary_polygon, alpha, beta, xi, psi, lambda, kappa, L);
         obtuse_count = return_obtuse(cdt, boundary_polygon);
+        
 
     } 
     else if (method == "local") {
