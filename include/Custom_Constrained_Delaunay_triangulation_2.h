@@ -74,6 +74,27 @@ public:
 
     }
 
+        void remove_no_flip(Vertex_handle v) {
+
+        this->Base::Ctr::remove(v); // Directly call Ctr::insert from the base
+
+        
+
+    }
+
+    void insert_constraint_no_flip(const Point& a, Point& b) {
+
+        this->Base::Ctr::insert_constraint(a,b); // Directly call Ctr::insert from the base
+
+        
+
+    }
+
+    template <class OutputIterator>
+    void remove_constrained_edge(Face_handle loc, int li,OutputIterator out){
+        this->Base::Ctr::remove_constrained_edge(loc, li,out);
+    }
+
 };
 
 

@@ -5,6 +5,7 @@
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Delaunay_triangulation_2.h>
 #include "include/Custom_Constrained_Delaunay_triangulation_2.h"
+#include <CGAL/Constrained_triangulation_plus_2.h>
 #include <CGAL/Polygon_2.h>
 #include <iostream>
 #include <vector>
@@ -14,7 +15,8 @@
 
 typedef CGAL::Exact_predicates_exact_constructions_kernel K;
 typedef CGAL::Exact_predicates_tag Itag;
-typedef Custom_Constrained_Delaunay_triangulation_2<K, CGAL::Default, Itag> CDT; 
+// typedef Custom_Constrained_Delaunay_triangulation_2<K, CGAL::Default, Itag> CDT; 
+typedef CGAL::Constrained_triangulation_plus_2<Custom_Constrained_Delaunay_triangulation_2<K, CGAL::Default, CGAL::Exact_intersections_tag>> CDT;
 typedef CGAL::Polygon_2<K> Polygon;
 typedef K::Point_2 Point;  
 typedef K::Segment_2 Edge; 
@@ -212,6 +214,28 @@ int min(int r1, int r2, int r3, int r4,int r5, int r6){
     return min_num;
 }
 
+int min_local(int r1, int r2, int r3, int r4,int r5){
+    int min=r1;
+    int min_num=1;
+    if (r2<min){
+        min=r2;
+        min_num=2;
+    }
+    if (r3<min){
+        min=r3;
+        min_num=3;
+    }
+    if (r4<min){
+        min=r4;
+        min_num=4;
+    }
+    if (r5<min){
+        min=r5;
+        min_num=5;
+    }
+    return min_num;
+}
+
 //Function to compute the midpoint (bisect)
 Point midpoint_edge(const Point& p1, const Point& p2) {
     //Get the x coordinates 
@@ -397,6 +421,340 @@ bool find_obtuse_neighbor(CDT& cdt, Face_handle face, Face_handle& obtuse_neighb
     return false;
 }
 
+bool point_not_in_vector(std::vector<Point>& points, Point p){
+    for (int i=0; i<points.size(); i++){
+        if (points[i]==p){
+            return false;
+        }
+    }
+    return true;
+
+}
+
+
+bool check_if_vertex_constrained(CDT& cdt, CDT::Edge_circulator& c1){
+    CDT::Edge startedge=*c1;
+    CDT::Edge edge;
+    do{
+        edge=*c1;
+        if (cdt.is_infinite(edge)){
+            // std::cout<<"Infinite edge"<<std::endl;
+            c1++;
+            continue;
+            
+        }
+        if (cdt.is_constrained(edge)){
+            // std::cout<<"Constrained edge"<<std::endl;
+            return true;
+            
+           
+        }
+        else{
+            // std::cout<<"Not Constrained edge"<<std::endl;
+            
+        }
+        c1++;
+
+    }while(*c1!=startedge);
+    return false;
+
+}
+
+void insert_circumcenter(CDT &cdt,Point p1, Point p2, Point p3,Polygon &bound){
+    Face_handle face;
+        for (auto face2= cdt.finite_faces_begin(); face2!=cdt.finite_faces_end(); face2++){
+        Point facep1=face2->vertex(0)->point();
+        Point facep2=face2->vertex(1)->point();
+        Point facep3=face2->vertex(2)->point();
+        if ((facep1==p1 && facep2==p2 && facep3==p3)){
+            face=face2;
+            
+            break;
+        }
+    }
+    Point circcenter=CGAL::circumcenter(p1,p2,p3);
+    for (int i=0; i<3; i++){
+        Face_handle neighbor=face->neighbor(i);
+        if (cdt.is_infinite(neighbor)==true){
+            continue;
+        }
+        int constrained=0;
+        for (int j=0; j<3; j++){
+            if (neighbor->is_constrained(j)==true){
+                constrained=1;
+            }
+        }
+        if (constrained==1){
+            continue;
+        }
+        int index_n;
+        index_n=neighbor->index(face);
+        Point np1=neighbor->vertex((index_n+2)%3)->point();
+        Point np2=neighbor->vertex(index_n)->point();
+        Point np3=neighbor->vertex((index_n+1)%3)->point();
+        Polygon npolygon;
+        npolygon.push_back(np1);
+        npolygon.push_back(np2);
+        npolygon.push_back(np3);
+        std::vector<Point> points;
+        std::vector<CDT::Vertex_handle> vertices;
+
+        
+        
+
+        if ((npolygon.bounded_side(circcenter) != CGAL::ON_UNBOUNDED_SIDE) && (bound.bounded_side(CGAL::centroid(np1,np2,np3))!=CGAL::ON_UNBOUNDED_SIDE)){
+            vertices.clear();
+            points.clear();
+            points.push_back(face->vertex((i+2)%3)->point());
+            points.push_back(face->vertex(i)->point());
+            points.push_back(face->vertex((i+1)%3)->point());
+            points.push_back(np2);
+            vertices.push_back(face->vertex((i+2)%3));
+            vertices.push_back(face->vertex(i));
+            vertices.push_back(face->vertex((i+1)%3));
+            vertices.push_back(neighbor->vertex(index_n));
+            
+                    
+            for (int k=0; k<vertices.size(); k++){
+
+                CDT::Vertex_handle vr=vertices[k];
+                CDT::Edge_circulator circ=vr->incident_edges();
+                if (check_if_vertex_constrained(cdt,circ)==false){
+                    cdt.remove_no_flip(vr);
+                
+                }
+            }
+
+            CGAL::draw(cdt);
+             
+            
+                
+
+            
+
+            std::vector<CDT::Constraint_id> constraints;
+
+            
+            
+            for (int k=0; k<points.size()-1; k++){
+                CDT::Constraint_id constraint_id=cdt.insert_constraint(points[k],points[k+1]);
+                constraints.push_back(constraint_id);
+            }
+            
+            
+            CDT::Constraint_id cid=cdt.insert_constraint(points[0],points[points.size()-1]);
+            
+            
+            constraints.push_back(cid);
+            cdt.insert_no_flip(circcenter);
+            CGAL::draw(cdt);
+            int obtuse_count;
+            int new_obtuse_count;
+            do{
+                obtuse_count=return_obtuse(cdt,bound);
+                flip_edges(cdt,bound);
+                new_obtuse_count=return_obtuse(cdt,bound);
+                
+            }while(obtuse_count>new_obtuse_count);
+            
+            
+            
+            
+            
+            for (int k=0; k<constraints.size(); k++){
+                cdt.remove_constraint(constraints[k]);
+            }
+            CGAL::draw(cdt);
+            
+            
+                    
+                        
+                
+                
+                
+            return;
+        }
+    }
+    
+}
+
+
+int unify_triangles(CDT& cdt, Point p1, Point p2, Point p3,Polygon& bound){
+    std::vector<Point> points;
+    std::vector<CDT::Vertex_handle> vertices;
+    int obtuse_neighbors=0;
+    
+    Face_handle face;
+   
+    for (auto face2= cdt.finite_faces_begin(); face2!=cdt.finite_faces_end(); face2++){
+        Point facep1=face2->vertex(0)->point();
+        Point facep2=face2->vertex(1)->point();
+        Point facep3=face2->vertex(2)->point();
+        if ((facep1==p1 && facep2==p2 && facep3==p3)){
+            face=face2;
+            
+            break;
+        }
+    }
+
+        for (int j=0; j<3; j++){
+            if (face->is_constrained(j)==true){
+                
+
+                return 0;
+            }
+        }
+    
+    
+    for (int i=0; i<3; i++){
+        
+        
+        
+        
+        int constrained=0;
+        Face_handle neighbor=face->neighbor(i);
+        if (cdt.is_infinite(neighbor)==true){
+            if (point_not_in_vector(points,face->vertex((i+1)%3)->point())==true){
+                Point p=face->vertex((i+1)%3)->point();
+                points.push_back(p);
+                vertices.push_back(face->vertex((i+1)%3));
+            
+
+            }
+        
+    
+            if (point_not_in_vector(points,face->vertex((i+2)%3)->point())==true){
+
+            
+                points.push_back(face->vertex((i+2)%3)->point());
+                vertices.push_back(face->vertex((i+2)%3));
+            }
+            continue;
+        }
+        for (int j=0; j<3; j++){
+            if (neighbor->is_constrained(j)==true){
+                
+
+                constrained=1;
+            }
+        }
+        
+
+        int index_n;
+        index_n=neighbor->index(face);
+        Point p1=neighbor->vertex((index_n+2)%3)->point();
+        Point p2=neighbor->vertex(index_n)->point();
+        Point p3=neighbor->vertex((index_n+1)%3)->point();
+        
+        if ((constrained==1) || (is_obtuse(p1,p2,p3)==0) || (bound.bounded_side(CGAL::centroid(p1,p2,p3))==CGAL::ON_UNBOUNDED_SIDE)){
+            if (point_not_in_vector(points,face->vertex((i+1)%3)->point())==true ){
+                points.push_back(face->vertex((i+1)%3)->point());
+                vertices.push_back(face->vertex((i+1)%3));
+
+            }
+            if (point_not_in_vector(points,face->vertex((i+2)%3)->point())==true){
+
+            
+                points.push_back(face->vertex((i+2)%3)->point());
+                vertices.push_back(face->vertex((i+2)%3));
+            }
+            continue;
+        }
+        obtuse_neighbors++;
+        if (point_not_in_vector(points,p1)==true ){
+            points.push_back(p1);
+            vertices.push_back(neighbor->vertex((index_n+2)%3));
+
+        }
+        if (point_not_in_vector(points,p2)==true){
+            points.push_back(p2);
+            vertices.push_back(neighbor->vertex((index_n)%3));
+        }
+        if (point_not_in_vector(points,p3)==true){
+
+            
+            points.push_back(p3);
+            vertices.push_back(neighbor->vertex((index_n+1)%3));
+        }
+        
+
+    }
+    Polygon built(points.begin(),points.end());
+    
+    
+    std::cout<<"number of neigh "<<obtuse_neighbors<<std::endl;
+    if (obtuse_neighbors==0 || CGAL::is_convex_2(points.begin(),points.end())==false){
+        return 0;
+    }
+    K::FT sum_x=0;
+    K::FT sum_y=0;
+    K::FT size=points.size();
+    
+    
+    for (int i=0; i<points.size(); i++){
+        
+        sum_x=sum_x+points[i].x();
+        sum_y=sum_y+points[i].y();
+
+        CDT::Vertex_handle vr=vertices[i];
+        CDT::Edge_circulator circ=vr->incident_edges();
+        if (check_if_vertex_constrained(cdt,circ)==false){
+            cdt.remove_no_flip(vr);
+           
+        }
+        
+
+    }
+    std::cout<<sum_x<<std::endl;
+    std::cout<<sum_y<<std::endl;
+    Point mean=Point(sum_x/size,sum_y/size);
+    std::cout<<mean<<std::endl;
+    std::vector<CDT::Constraint_id> constraints;
+    if (built.bounded_side(mean)!=CGAL::ON_UNBOUNDED_SIDE){
+        std::cout<<"inside polygon"<<std::endl;
+        
+
+    }
+    else{
+        
+    }
+    
+    
+    for (int i=0; i<points.size()-1; i++){
+        CDT::Constraint_id constraint_id=cdt.insert_constraint(points[i],points[i+1]);
+        constraints.push_back(constraint_id);
+    }
+    
+    
+    CDT::Constraint_id cid=cdt.insert_constraint(points[0],points[points.size()-1]);
+    
+    
+    constraints.push_back(cid);
+    cdt.insert_no_flip(mean);
+
+    int obtuse_count;
+    int new_obtuse_count;
+    do{
+        obtuse_count=return_obtuse(cdt,bound);
+        flip_edges(cdt,bound);
+        new_obtuse_count=return_obtuse(cdt,bound);
+                
+    }while(obtuse_count>new_obtuse_count);
+    
+    
+    
+    
+    for (int i=0; i<constraints.size(); i++){
+        cdt.remove_constraint(constraints[i]);
+    }
+    CGAL::draw(cdt);
+    
+    
+    return 0;
+}
+
+
+
 //Insert Steiner points between all neighboring obtuse faces
 void insert_steiner_point_between_obtuse_neighbors(CDT& cdt,Polygon& pol) {
     bool found_pair = true;
@@ -449,6 +807,158 @@ void insert_steiner_point_between_obtuse_neighbors(CDT& cdt,Polygon& pol) {
 }
 
 void local_method(CDT& cdt, Polygon& pol, int L) {
+    int count=0;
+    std::cout<<"hello"<<std::endl;
+
+    while (count<L){
+        int num_of_obtuse_before=return_obtuse(cdt,pol);
+
+    for (auto face = cdt.finite_faces_begin(); face != cdt.finite_faces_end(); ++face) {
+        CDT copy1, copy2, copy3, copy4,copy5,copy6;
+        copy1= cdt;
+        copy2= cdt;
+        copy3= cdt;
+        copy4= cdt;
+        copy5= cdt;
+    
+        copy6= cdt;
+        
+        
+        Point p1 = face->vertex(0)->point();
+        Point p2 = face->vertex(1)->point();
+        Point p3 = face->vertex(2)->point();
+
+        //Find the obtuse edge
+        
+        int obtuse_edge = is_obtuse(p1, p2, p3); 
+        
+            
+        
+        if ((pol.bounded_side(CGAL::centroid(p1,p2,p3))!=CGAL::ON_UNBOUNDED_SIDE) && (obtuse_edge != 0)) {
+            Point steiner_point;
+            Point midpoint;
+            if (obtuse_edge == 1) {
+                steiner_point = project_edge(p1,p2, p3);  // Bisect edge (p2, p3)
+                midpoint = midpoint_edge(p2, p3);    
+            } 
+            else if (obtuse_edge == 2) {
+                steiner_point = project_edge(p2,p1, p3);  // Bisect edge (p1, p3)
+                midpoint = midpoint_edge(p1, p3);
+            } 
+            else if (obtuse_edge == 3) {
+                steiner_point = project_edge(p3,p1, p2);  // Bisect edge (p1, p2)
+                midpoint = midpoint_edge(p1, p2);
+            }
+            
+            Face_handle neighbor = face->neighbor(obtuse_edge - 1);
+            
+            copy1.insert(CGAL::centroid(p1,p2,p3));
+            copy2.insert_no_flip(steiner_point);
+            if (pol.bounded_side(CGAL::circumcenter(p1,p2,p3))!=CGAL::ON_UNBOUNDED_SIDE){
+                copy3.insert(CGAL::circumcenter(p1,p2,p3));
+            }
+            copy4.insert_no_flip(midpoint);
+            copy5.insert(midpoint);
+            // copy6.insert(steiner_point);
+            
+            
+            int ret1=return_obtuse(copy1,pol);
+            int ret2=return_obtuse(copy2,pol);
+            int ret3=return_obtuse(copy3,pol);
+            int ret4=return_obtuse(copy4,pol);  
+            int ret5=return_obtuse(copy5,pol);
+            // int ret6=return_obtuse(copy6,pol); 
+            int min_ret=min_local(ret1,ret2,ret3,ret4,ret5);
+            
+            if (min_ret==1){
+                if (ret1<num_of_obtuse_before){
+                    // cdt.insert(CGAL::centroid(p1,p2,p3));
+                    cdt.clear();
+                    cdt=copy1;
+                    
+ 
+                    //Save the centroid coordinates
+                    
+                    steiner_points_x_2.push_back((CGAL::centroid(p1, p2, p3).x()));
+                    steiner_points_y_2.push_back((CGAL::centroid(p1, p2, p3).y()));
+
+
+                   
+                    break;
+                }
+            }
+            else if (min_ret==2){
+                if (ret2<num_of_obtuse_before){
+                    // cdt.insert_no_flip(steiner_point);
+                    cdt.clear();
+                    cdt=copy2;
+
+                    //Save the steiner point coordinates
+                    
+                    steiner_points_x_2.push_back(steiner_point.x());
+                    steiner_points_y_2.push_back(steiner_point.y());
+
+
+                    // insert_steiner_points_combined(cdt, ret2,pol);
+                    break;
+                }  
+            }
+            else if (min_ret==3){
+                if (ret3<num_of_obtuse_before){
+                    // cdt.insert(CGAL::circumcenter(p1,p2,p3));
+                    cdt.clear();
+                    cdt=copy3;
+
+                    //Save the circumcenter coordinates
+                    
+                    steiner_points_x_2.push_back((CGAL::circumcenter(p1, p2, p3).x()));
+                    steiner_points_y_2.push_back(CGAL::circumcenter(p1, p2, p3).y());
+
+
+                    // insert_steiner_points_combined(cdt, ret3,pol);
+                    break;
+                }  
+            }
+            else if (min_ret==4){
+                if (ret4<num_of_obtuse_before){
+                    // cdt.insert_no_flip(midpoint);
+                    cdt.clear();
+                    cdt=copy4;
+
+                    //Save the midpoint coordinates
+                    
+                    steiner_points_x_2.push_back(midpoint.x());
+                    steiner_points_y_2.push_back(midpoint.y());
+
+                    
+
+                    
+                    break;
+                }      
+            }   
+            else if (min_ret==5){
+                if (ret5<num_of_obtuse_before){
+                    // cdt.insert(midpoint);
+                    cdt.clear();
+                    cdt=copy5;
+
+                    //Save the midpoint coordinates
+                    
+                    steiner_points_x_2.push_back(midpoint.x());
+                    steiner_points_y_2.push_back(midpoint.y());
+
+                    // insert_steiner_points_combined(cdt, ret5,pol);
+                    return;
+                } 
+            }
+            
+
+        }
+    }
+    count++;
+    }
+    
+
     return;
 }
 
@@ -458,7 +968,7 @@ void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) {
     int initial_steiner_points = steiner_points_x_2.size(); 
     double energy = alpha * initial_obtuse + beta * initial_steiner_points;
     srand(time(0));
-    L=1000;
+    
 
     double T = 1.0;
     bool improvement;
@@ -510,6 +1020,7 @@ void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) {
             steiner_points.push_back(midpoint);
             steiner_points.push_back(CGAL::circumcenter(p1, p2, p3));
             steiner_points.push_back(CGAL::centroid(p1, p2, p3));
+            
 
             Point selected_point = steiner_points[rand() % steiner_points.size()];
 
@@ -526,13 +1037,17 @@ void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) {
 
             int new_obtuse = return_obtuse(temp_cdt, pol);
             int new_steiner_points =  steiner_points_x_2.size() + 1; 
+            printf("%d\n",new_steiner_points);
+            
             double new_energy = alpha * new_obtuse + beta * new_steiner_points;
+            
 
             double d_energy = new_energy - energy;
 
             if(d_energy < 0 || (exp((-1)*d_energy / T) >= ((double)rand() / RAND_MAX))) { //Propability between 0.0 and 1.0
                if(selected_point == CGAL::centroid(p1, p2, p3) || selected_point == CGAL::circumcenter(p1, p2, p3)){
                   cdt.insert(selected_point);
+
                   
                 }
                 else{
@@ -545,6 +1060,7 @@ void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) {
                 steiner_points_x_2.push_back((selected_point.x()));
                 steiner_points_y_2.push_back((selected_point.y()));
                 std::cout << "Improved made\n";
+                printf("%d\n",new_steiner_points);
                 break;
             }
         }
@@ -726,24 +1242,51 @@ int main(int argc, char *argv[]) {
         Point p1 = face->vertex((idx + 1) % 3)->point();
         Point p2 = face->vertex((idx + 2) % 3)->point();
         int v1, v2;
+        Point midpoint((p1.x()+p2.x())/2,(p1.y()+p2.y())/2);
+        if (boundary_polygon.bounded_side(midpoint)!=CGAL::ON_UNBOUNDED_SIDE){
 
-        for (size_t i = 0; i < points.size(); ++i) {
+        
+        for (int i = 0; i < points.size(); ++i) {
+            
             if(points[i] == p1) {
               v1 =  i;
               break;
             }
            v1 = -1;
         }
-        for (size_t i = 0; i < points.size(); ++i) {
+        for (int i = 0; i < steiner_points_x_2.size(); ++i) {
+            Point steiner(steiner_points_x_2[i],steiner_points_y_2[i]);
+            
+            if(steiner == p1) {
+              v1 =  num_points+i;
+              break;
+            }
+           v1 = -1;
+        }
+        for (int i = 0; i < points.size(); ++i) {
             if(points[i] == p2) {
               v2 =  i;
               break;
             }
             v2 = -1;
         }
+        for (int i = 0; i < steiner_points_x_2.size(); ++i) {
+            Point steiner(steiner_points_x_2[i],steiner_points_y_2[i]);
+            
+            if(steiner == p2) {
+              v2 =  num_points+i;
+              break;
+            }
+           v2 = -1;
+        }
 
-        if(v1 != -1 && v2 != -1) 
+        if(v1 != -1 && v2 != -1) {
           edges.push_back({v1, v2});
+        }
+
+
+        }
+    
     }
     output["edges"] = edges; 
     output["obtuse_count"] = obtuse_count;
