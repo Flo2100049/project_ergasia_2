@@ -257,6 +257,7 @@ Point midpoint_edge(const Point& p1, const Point& p2) {
 
 //Simple fuction for putting steiner point in the first obtuse face
 void insert_steiner_points_combined(CDT& cdt, int num_of_obtuse_before,Polygon& pol) {
+    std::cout<<"HELLO COMBINED"<<std::endl;
     for (auto face = cdt.finite_faces_begin(); face != cdt.finite_faces_end(); ++face) {
         CDT copy1, copy2, copy3, copy4,copy5,copy6;
         copy1= cdt;
@@ -484,7 +485,7 @@ void insert_circumcenter(CDT &cdt,Point p1, Point p2, Point p3,Polygon &bound){
                 constrained=1;
             }
         }
-        if (constrained==1){
+        if (constrained==1){                    
             continue;
         }
         int index_n;
@@ -493,7 +494,7 @@ void insert_circumcenter(CDT &cdt,Point p1, Point p2, Point p3,Polygon &bound){
         Point np2=neighbor->vertex(index_n)->point();
         Point np3=neighbor->vertex((index_n+1)%3)->point();
         Polygon npolygon;
-        npolygon.push_back(np1);
+        npolygon.push_back(np1);                                        //DHMIOURGIA POLIGONOY GEITONON
         npolygon.push_back(np2);
         npolygon.push_back(np3);
         std::vector<Point> points;
@@ -519,13 +520,13 @@ void insert_circumcenter(CDT &cdt,Point p1, Point p2, Point p3,Polygon &bound){
 
                 CDT::Vertex_handle vr=vertices[k];
                 CDT::Edge_circulator circ=vr->incident_edges();
-                if (check_if_vertex_constrained(cdt,circ)==false){
+                if (check_if_vertex_constrained(cdt,circ)==false){          //ELEGXOS VERTICES TOY POLIGOUNOU POU ANHKOYN SE CONSTRAINT. AN OXI MPOREI NA AFAIRETHEI. ALLIOS OXI
                     cdt.remove_no_flip(vr);
                 
                 }
             }
 
-            CGAL::draw(cdt);
+            
              
             
                 
@@ -538,7 +539,7 @@ void insert_circumcenter(CDT &cdt,Point p1, Point p2, Point p3,Polygon &bound){
             
             for (int k=0; k<points.size()-1; k++){
                 CDT::Constraint_id constraint_id=cdt.insert_constraint(points[k],points[k+1]);
-                constraints.push_back(constraint_id);
+                constraints.push_back(constraint_id);                                               //EISAGOSI SIMEION POLIGONOY ME CONSTRAINT
             }
             
             
@@ -547,24 +548,27 @@ void insert_circumcenter(CDT &cdt,Point p1, Point p2, Point p3,Polygon &bound){
             
             constraints.push_back(cid);
             cdt.insert_no_flip(circcenter);
-            CGAL::draw(cdt);
+            
             int obtuse_count;
             int new_obtuse_count;
             do{
                 obtuse_count=return_obtuse(cdt,bound);
                 flip_edges(cdt,bound);
-                new_obtuse_count=return_obtuse(cdt,bound);
+                new_obtuse_count=return_obtuse(cdt,bound);          //EISAGOGI SIMEIOY KAI ELEGXOS ME FLIP AN EXEI MPOREI NA AFAIRETHEI TO EDGE POY DIAXORISEI TOYS GEITONES ME FLIP TOY.
+                                                                    //AN TO EDGE POY DIAXORISEI TA TRIGONA DEN MPOREI NA AFAIRETHEI EPEIDI KAI TA DIO VERTICES ANHKOYN SE KAPOIO CONSTRAINT
                 
             }while(obtuse_count>new_obtuse_count);
+
+            
             
             
             
             
             
             for (int k=0; k<constraints.size(); k++){
-                cdt.remove_constraint(constraints[k]);
+                cdt.remove_constraint(constraints[k]);          //AFAIRESI CONSTRAINTS
             }
-            CGAL::draw(cdt);
+            
             
             
                     
@@ -579,11 +583,12 @@ void insert_circumcenter(CDT &cdt,Point p1, Point p2, Point p3,Polygon &bound){
 }
 
 
-int unify_triangles(CDT& cdt, Point p1, Point p2, Point p3,Polygon& bound){
+Point unify_triangles(CDT& cdt, Point p1, Point p2, Point p3,Polygon& bound){
     std::vector<Point> points;
     std::vector<CDT::Vertex_handle> vertices;
     int obtuse_neighbors=0;
-    
+    Point mean;
+                                                                //EISAGOSI SIMEIOY ME ENOSI TRIGONON. PAROMOIA ME THN CIRCUMCENTER ALLA FTIAXNEI POLIGONO ME POLLAPLA TRIGONA.
     Face_handle face;
    
     for (auto face2= cdt.finite_faces_begin(); face2!=cdt.finite_faces_end(); face2++){
@@ -601,7 +606,7 @@ int unify_triangles(CDT& cdt, Point p1, Point p2, Point p3,Polygon& bound){
             if (face->is_constrained(j)==true){
                 
 
-                return 0;
+                return mean;
             }
         }
     
@@ -682,9 +687,9 @@ int unify_triangles(CDT& cdt, Point p1, Point p2, Point p3,Polygon& bound){
     Polygon built(points.begin(),points.end());
     
     
-    std::cout<<"number of neigh "<<obtuse_neighbors<<std::endl;
+    
     if (obtuse_neighbors==0 || CGAL::is_convex_2(points.begin(),points.end())==false){
-        return 0;
+        return mean;
     }
     K::FT sum_x=0;
     K::FT sum_y=0;
@@ -705,19 +710,10 @@ int unify_triangles(CDT& cdt, Point p1, Point p2, Point p3,Polygon& bound){
         
 
     }
-    std::cout<<sum_x<<std::endl;
-    std::cout<<sum_y<<std::endl;
-    Point mean=Point(sum_x/size,sum_y/size);
-    std::cout<<mean<<std::endl;
+    
+    mean=Point(sum_x/size,sum_y/size);
+    
     std::vector<CDT::Constraint_id> constraints;
-    if (built.bounded_side(mean)!=CGAL::ON_UNBOUNDED_SIDE){
-        std::cout<<"inside polygon"<<std::endl;
-        
-
-    }
-    else{
-        
-    }
     
     
     for (int i=0; i<points.size()-1; i++){
@@ -747,10 +743,10 @@ int unify_triangles(CDT& cdt, Point p1, Point p2, Point p3,Polygon& bound){
     for (int i=0; i<constraints.size(); i++){
         cdt.remove_constraint(constraints[i]);
     }
-    CGAL::draw(cdt);
     
     
-    return 0;
+    
+    return mean;
 }
 
 
@@ -808,7 +804,7 @@ void insert_steiner_point_between_obtuse_neighbors(CDT& cdt,Polygon& pol) {
 
 void local_method(CDT& cdt, Polygon& pol, int L) {
     int count=0;
-    std::cout<<"hello"<<std::endl;
+   
 
     while (count<L){
         int num_of_obtuse_before=return_obtuse(cdt,pol);
@@ -821,7 +817,7 @@ void local_method(CDT& cdt, Polygon& pol, int L) {
         copy4= cdt;
         copy5= cdt;
     
-        copy6= cdt;
+        
         
         
         Point p1 = face->vertex(0)->point();
@@ -855,11 +851,11 @@ void local_method(CDT& cdt, Polygon& pol, int L) {
             copy1.insert(CGAL::centroid(p1,p2,p3));
             copy2.insert_no_flip(steiner_point);
             if (pol.bounded_side(CGAL::circumcenter(p1,p2,p3))!=CGAL::ON_UNBOUNDED_SIDE){
-                copy3.insert(CGAL::circumcenter(p1,p2,p3));
+                insert_circumcenter(copy3,p1,p2,p3,pol);
             }
             copy4.insert_no_flip(midpoint);
-            copy5.insert(midpoint);
-            // copy6.insert(steiner_point);
+            Point mean=unify_triangles(copy5,p1,p2,p3,pol);
+            
             
             
             int ret1=return_obtuse(copy1,pol);
@@ -867,7 +863,7 @@ void local_method(CDT& cdt, Polygon& pol, int L) {
             int ret3=return_obtuse(copy3,pol);
             int ret4=return_obtuse(copy4,pol);  
             int ret5=return_obtuse(copy5,pol);
-            // int ret6=return_obtuse(copy6,pol); 
+            
             int min_ret=min_local(ret1,ret2,ret3,ret4,ret5);
             
             if (min_ret==1){
@@ -899,13 +895,14 @@ void local_method(CDT& cdt, Polygon& pol, int L) {
                     steiner_points_y_2.push_back(steiner_point.y());
 
 
-                    // insert_steiner_points_combined(cdt, ret2,pol);
+                    
                     break;
                 }  
             }
             else if (min_ret==3){
                 if (ret3<num_of_obtuse_before){
                     // cdt.insert(CGAL::circumcenter(p1,p2,p3));
+                    
                     cdt.clear();
                     cdt=copy3;
 
@@ -915,13 +912,13 @@ void local_method(CDT& cdt, Polygon& pol, int L) {
                     steiner_points_y_2.push_back(CGAL::circumcenter(p1, p2, p3).y());
 
 
-                    // insert_steiner_points_combined(cdt, ret3,pol);
+                    
                     break;
                 }  
             }
             else if (min_ret==4){
                 if (ret4<num_of_obtuse_before){
-                    // cdt.insert_no_flip(midpoint);
+                    
                     cdt.clear();
                     cdt=copy4;
 
@@ -937,17 +934,19 @@ void local_method(CDT& cdt, Polygon& pol, int L) {
                 }      
             }   
             else if (min_ret==5){
+                
                 if (ret5<num_of_obtuse_before){
-                    // cdt.insert(midpoint);
+                    
+                    
                     cdt.clear();
                     cdt=copy5;
 
                     //Save the midpoint coordinates
                     
-                    steiner_points_x_2.push_back(midpoint.x());
-                    steiner_points_y_2.push_back(midpoint.y());
+                    steiner_points_x_2.push_back(mean.x());
+                    steiner_points_y_2.push_back(mean.y());
 
-                    // insert_steiner_points_combined(cdt, ret5,pol);
+                    
                     return;
                 } 
             }
@@ -1179,13 +1178,13 @@ int main(int argc, char *argv[]) {
 
     int obtuse_count;
 
-    if(!delaunay) {
+    if(delaunay==true) {
     ///////////////////////TEST FLIPPPING////////////////////
-    flip_edges(cdt,boundary_polygon);
+        flip_edges(cdt,boundary_polygon);
     ///////////////////////TEST FLIPPING//////////////////////////
     ///////////////////////TEST STEINER////////////////////
-    insert_steiner_point_between_obtuse_neighbors(cdt,boundary_polygon);
-    insert_steiner_points_combined(cdt, return_obtuse(cdt,boundary_polygon),boundary_polygon);
+        insert_steiner_point_between_obtuse_neighbors(cdt,boundary_polygon);
+        insert_steiner_points_combined(cdt, return_obtuse(cdt,boundary_polygon),boundary_polygon);
     ///////////////////////TEST STEINER//////////////////////////
     }
 
