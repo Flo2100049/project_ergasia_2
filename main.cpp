@@ -257,7 +257,7 @@ Point midpoint_edge(const Point& p1, const Point& p2) {
 
 //Simple fuction for putting steiner point in the first obtuse face
 void insert_steiner_points_combined(CDT& cdt, int num_of_obtuse_before,Polygon& pol) {
-    std::cout<<"HELLO COMBINED"<<std::endl;
+    
     for (auto face = cdt.finite_faces_begin(); face != cdt.finite_faces_end(); ++face) {
         CDT copy1, copy2, copy3, copy4,copy5,copy6;
         copy1= cdt;
@@ -480,14 +480,16 @@ void insert_circumcenter(CDT &cdt,Point p1, Point p2, Point p3,Polygon &bound){
             continue;
         }
         int constrained=0;
-        for (int j=0; j<3; j++){
-            if (neighbor->is_constrained(j)==true){
-                constrained=1;
-            }
-        }
-        if (constrained==1){                    
-            continue;
-        }
+        // for (int j=0; j<3; j++){
+        //     if (neighbor->is_constrained(j)==true){
+        //         constrained=1;
+        //     }
+        // }
+        // if (constrained==1){                    
+        //     continue;                                            //elegxos an o geitonas periexei constraints
+                                                                    //mexri tora den dhmiourgei provlimata an den elegxoume otan kanoume insert nea kai meta remove constraint
+                                                                    //an dhmiourgountai provlimata dokimaste me uncomment
+        // }
         int index_n;
         index_n=neighbor->index(face);
         Point np1=neighbor->vertex((index_n+2)%3)->point();
@@ -1036,7 +1038,7 @@ void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) {
 
             int new_obtuse = return_obtuse(temp_cdt, pol);
             int new_steiner_points =  steiner_points_x_2.size() + 1; 
-            printf("%d\n",new_steiner_points);
+            
             
             double new_energy = alpha * new_obtuse + beta * new_steiner_points;
             
@@ -1058,8 +1060,8 @@ void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) {
                 improvement = true;
                 steiner_points_x_2.push_back((selected_point.x()));
                 steiner_points_y_2.push_back((selected_point.y()));
-                std::cout << "Improved made\n";
-                printf("%d\n",new_steiner_points);
+                
+                
                 break;
             }
         }
@@ -1073,11 +1075,153 @@ void sa_method(CDT& cdt, Polygon& pol, double alpha, double beta, int L) {
     }
 }
 
+double findcircumradius(Face_handle &face){
+    // Find the circumradius of the face
+    Point p1 = face->vertex(0)->point();
+    Point p2 = face->vertex(1)->point();
+    Point p3 = face->vertex(2)->point();
+
+    Point circenter = CGAL::circumcenter(p1, p2, p3);
+    K::FT sqdistance = CGAL::squared_distance(circenter, p1);
+    double sqdistanced=CGAL::to_double(sqdistance);
+    double radius=double(std::sqrt(sqdistanced));
+
+    return radius;
+}
+double findheight(Face_handle face){
+                                                                    //sinartiseis gia circumradius kai ipsos gia na vrethei to ρ
+    Point p1 = face->vertex(0)->point();
+    Point p2 = face->vertex(1)->point();
+    Point p3 = face->vertex(2)->point();
+    int obt_angle=is_obtuse(p1,p2,p3);
+    Point projection;
+     K::FT sqdistance;
+    if (obt_angle==1){
+        projection=project_edge(p1,p2,p3);
+        sqdistance=CGAL::squared_distance(p1,projection);
+
+    }
+    else if (obt_angle==2){
+        projection=project_edge(p2,p1,p3);
+        sqdistance=CGAL::squared_distance(p2,projection);
+    }
+    else{
+        projection=project_edge(p3,p1,p2);
+        sqdistance=CGAL::squared_distance(p3,projection);
+        
+    }
+    
+    
+    
+    double sqdistanced=CGAL::to_double(sqdistance);
+    double distance=std::sqrt(sqdistanced);
+
+   
+
+    return distance;
+}
+// void antwork(CDT &cdt,Polygon pol,double midpher,double projpher,double circpher,int xi, int psi,double alpha,double beta,std::vector<double> &cyclephersums){
+//     srand(time(0));
+//     int amountofobtuse=return_obtuse(cdt,pol);
+//     int random_triangle=rand()%amountofobtuse;
+//     int count=0;
+//     for (auto face=cdt.finite_faces_begin(); face!=cdt.finite_faces_end();face++){
+//         Point p1=face->vertex(0)->point();
+//         Point p2=face->vertex(1)->point();
+//         Point p3=face->vertex(2)->point();
+//         int obtuse_angle=is_obtuse(p1,p2,p3);
+//         if (obtuse_angle !=0 && (pol.bounded_side(CGAL::centroid(p1,p2,p3)) !=CGAL::ON_UNBOUNDED_SIDE)){
+            
+//         if (count==random_triangle){
+//         Face_handle curface=face;
+//         double facecr=findcircumradius(curface)/findheight(curface);
+
+//         double hmidpoint=3-2*facecr/facecr;
+//         if (hmidpoint<0){
+//             hmidpoint=0;
+//         }
+//         double hproj=(facecr-1)/facecr;
+//         if (hproj<0){
+//             hproj=0;
+//         }
+//         int hcirc=facecr/(2+facecr);
+//         double sumofmethods=pow(midpher,xi)*pow(hmidpoint,psi) + pow(projpher,xi)*pow(hproj,psi) + pow(midpher,xi)+pow(hcirc,psi);        
+//         double thmid=pow(midpher,xi)*pow(hmidpoint,psi);
+//         double thproj=pow(projpher,xi)*pow(hproj,psi);
+//         double thcirc=pow(circpher,xi)+pow(hcirc,psi);
+//         double probmid=thmid/sumofmethods;
+//         double probproj=probmid+thproj/sumofmethods;
+//         double probcirc=probproj+thcirc/sumofmethods;
+//         double random_num=rand()/(RAND_MAX);
+//         Point midpoint;
+//         Point projection;
+//         cdt.clear();
+
+//         if (obtuse_angle == 1)
+//                 {
+//                     projection = project_edge(p1, p2, p3); // Bisect edge (p2, p3)
+//                     midpoint = midpoint_edge(p2, p3);
+//                 }
+//                 else if (obtuse_angle == 2)
+//                 {
+//                     projection = project_edge(p2, p3, p1); // Bisect edge (p3, p1)
+//                     midpoint = midpoint_edge(p3, p1);
+//                 }
+//                 else if (obtuse_angle == 3)
+//                 {
+//                     projection = project_edge(p3, p1, p2); // Bisect edge (p1, p2)
+//                     midpoint = midpoint_edge(p1, p2);
+//                 }
+        
+//         if (random_num<=probmid){
+//             cdt.insert_no_flip (midpoint);
+
+//         }
+//         else if(random_num<=probproj){
+//             cdt.insert_no_flip (projection);
+
+//         }
+//         else if (random_num<=probcirc){
+
+//         }
+//         }
+//         count++;
+//         }
+        
+//     }
+// }
+
+// void antmethod(CDT& cdt, Polygon& pol, double alpha, double beta, double xi, double psi, double lambda, int kappa, int L){
+//     int cycleamount=50;
+//     int bestobtcount=return_obtuse(cdt,pol);
+//     std::vector<double> phertracker;
+//     phertracker.push_back(0);
+//     phertracker.push_back(0);
+//     phertracker.push_back(0);
+//     CDT besttriang;
+//     for (int i=0; i<CYCLE_MAX; i++){
+
+    
+//     for (int j =0; j<50; i++){
+        
+
+//         CDT copy=cdt;
+//         // antwork(cdt,pol);
+
+//     }
+//     }
+        //check energy
+        //update pheromone
+// }
+
+
 
 
 void ant_method(CDT& cdt, Polygon& pol, double alpha, double beta, double xi, double psi, double lambda, int kappa, int L) {
    return;
 }
+
+
 
 
 int main(int argc, char *argv[]) {
@@ -1199,7 +1343,7 @@ int main(int argc, char *argv[]) {
         printf("%d\n",L);
         sa_method(cdt, boundary_polygon, alpha, beta, L);
         obtuse_count = return_obtuse(cdt, boundary_polygon);  
-        printf("hello\n");
+        
     } 
     else if (method == "ant") {
         double alpha = parameters.at("alpha").as_double();
